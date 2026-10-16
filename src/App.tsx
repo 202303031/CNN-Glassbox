@@ -6,6 +6,8 @@ import { KernelControls } from './components/KernelControls';
 import { MatrixVisualizer } from './components/MatrixVisualizer';
 import { PlaybackBar } from './components/PlaybackBar';
 import { MathInspector } from './components/MathInspector';
+import { PredictionDashboard } from './components/PredictionDashboard';
+import { CompareModal } from './components/CompareModal';
 import { DrawableCanvasModal } from './components/DrawableCanvasModal';
 
 import type {
@@ -18,42 +20,48 @@ import type {
 import {
   runPreprocessingPipeline,
   computeOtsuThreshold,
+  runAutoClean,
 } from './utils/preprocess';
 import { convolve2D, pool2D } from './utils/cnnEngine';
+import { classifyPipeline } from './utils/digitClassifier';
 import {
   KERNEL_PRESETS_3X3,
   generateStreetScene,
   generateCheckerboard,
   generateHandwrittenDigit8,
+  generateHandwrittenDigit6,
+  generateHandwrittenDigitMulti69,
+  generateBlurryDigit8,
 } from './utils/presets';
 
 export function App() {
   // 1. Raw image state (128x128 ImageData)
   const [rawImgData, setRawImgData] = useState<ImageData | null>(null);
-  const [activePreset, setActivePreset] = useState<string>('street');
+  const [activePreset, setActivePreset] = useState<string>('digit8');
   const [isDrawModalOpen, setIsDrawModalOpen] = useState(false);
+  const [isCompareModalOpen, setIsCompareModalOpen] = useState(false);
 
-  // 2. Preprocessing Configuration
+  // 2. Preprocessing Configuration (Default 24x24 for 24 -> 22 -> 11 downsampling)
   const [preprocessConfig, setPreprocessConfig] = useState<PreprocessConfig>({
-    colorMode: 'grayscale',
+    colorMode: 'binary',
     threshold: 128,
-    sharpenAlpha: 1.0,
+    sharpenAlpha: 1.8,
     noiseReduction: 'none',
     normalize: false,
-    targetSize: 16,
+    targetSize: 24,
   });
 
-  // 3. Convolution Configuration
+  // 3. Convolution Configuration (Default padding: 0 -> F_conv is 22x22)
   const [convConfig, setConvConfig] = useState<ConvolutionConfig>({
     kernelSize: 3,
     kernel: KERNEL_PRESETS_3X3[0].weights.map((r) => [...r]), // Default Sobel X
-    padding: 1,
+    padding: 0,
     stride: 1,
     bias: 0,
     activation: 'relu',
   });
 
-  // 4. Pooling Configuration
+  // 4. Pooling Configuration (Default K_p=2, S_p=2 NON-OVERLAPPING -> F_pool is 11x11!)
   const [poolConfig, setPoolConfig] = useState<PoolingConfig>({
     mode: 'max',
     windowSize: 2,
@@ -68,36 +76,48 @@ export function App() {
   const [stageMode, setStageMode] = useState<'conv' | 'pool'>('conv');
 
   // Helper to load preset image into rawImgData
-  const loadPreset = useCallback((preset: 'street' | 'checkerboard' | 'digit8') => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128;
-    canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const loadPreset = useCallback(
+    (preset: 'street' | 'checkerboard' | 'digit8' | 'digit6' | 'multi69' | 'blurry8') => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
 
-    if (preset === 'street') {
-      generateStreetScene(ctx, 128);
-    } else if (preset === 'checkerboard') {
-      generateCheckerboard(ctx, 128);
-    } else if (preset === 'digit8') {
-      generateHandwrittenDigit8(ctx, 128);
-    }
+      if (preset === 'street') {
+        generateStreetScene(ctx, 128);
+      } else if (preset === 'checkerboard') {
+        generateCheckerboard(ctx, 128);
+      } else if (preset === 'digit8') {
+        generateHandwrittenDigit8(ctx, 128);
+      } else if (preset === 'digit6') {
+        generateHandwrittenDigit6(ctx, 128);
+      } else if (preset === 'multi69') {
+        generateHandwrittenDigitMulti69(ctx, 128);
+      } else if (preset === 'blurry8') {
+        generateBlurryDigit8(ctx, 128);
+      }
 
-    const imgData = ctx.getImageData(0, 0, 128, 128);
-    setRawImgData(imgData);
-    setActivePreset(preset);
+      const imgData = ctx.getImageData(0, 0, 128, 128);
+      setRawImgData(imgData);
+      setActivePreset(preset);
 
-    // Calculate auto Otsu for the newly loaded image
-    const optimalThreshold = computeOtsuThreshold(imgData);
-    setPreprocessConfig((prev) => ({
-      ...prev,
-      threshold: optimalThreshold,
-    }));
-  }, []);
+      // Calculate auto Otsu for the newly loaded image
+      const optimalThreshold = computeOtsuThreshold(imgData);
+      setPreprocessConfig((prev) => ({
+        ...prev,
+        threshold: optimalThreshold,
+        // Set sharpen alpha according to preset
+        sharpenAlpha: preset === 'blurry8' ? 0.0 : 1.8,
+        colorMode: preset === 'street' || preset === 'checkerboard' ? 'grayscale' : 'binary',
+      }));
+    },
+    []
+  );
 
-  // Initialize with 'street' preset on mount
+  // Initialize with 'digit8' preset on mount
   useEffect(() => {
-    loadPreset('street');
+    loadPreset('digit8');
   }, [loadPreset]);
 
   // Handle image file upload
@@ -162,6 +182,32 @@ export function App() {
     }));
   };
 
+  // Run Auto-Clean preset button
+  const handleAutoClean = () => {
+    if (!rawImgData) return;
+    const { cleanedImg, optimalThreshold } = runAutoClean(rawImgData);
+    setRawImgData(cleanedImg);
+    setPreprocessConfig((prev) => ({
+      ...prev,
+      colorMode: 'binary',
+      threshold: optimalThreshold,
+      sharpenAlpha: 1.8,
+      targetSize: 24,
+    }));
+  };
+
+  // Apply cleaned image from Compare Modal
+  const handleApplyCleanedFromCompare = (cleanedImg: ImageData, optimalThreshold: number) => {
+    setRawImgData(cleanedImg);
+    setPreprocessConfig((prev) => ({
+      ...prev,
+      colorMode: 'binary',
+      threshold: optimalThreshold,
+      sharpenAlpha: 1.8,
+      targetSize: 24,
+    }));
+  };
+
   // 6. Preprocessing Pipeline Execution
   const { sharpenedImg, binarizedImg, inputMatrix } = useMemo(() => {
     if (!rawImgData) {
@@ -178,15 +224,26 @@ export function App() {
     return runPreprocessingPipeline(rawImgData, preprocessConfig);
   }, [rawImgData, preprocessConfig]);
 
-  // 7. Convolution Execution
+  // 7. Convolution Execution (I -> F_conv: 24x24 with K=3, P=0 -> 22x22)
   const convResult = useMemo(() => {
     return convolve2D(inputMatrix, convConfig, preprocessConfig.normalize);
   }, [inputMatrix, convConfig, preprocessConfig.normalize]);
 
-  // 8. Pooling Execution
+  // 8. Pooling Execution (F_conv 22x22 -> F_pool 11x11 with K_p=2, S_p=2)
   const poolResult = useMemo(() => {
     return pool2D(convResult.convMap, poolConfig, preprocessConfig.normalize);
   }, [convResult.convMap, poolConfig, preprocessConfig.normalize]);
+
+  // 9. Stage 4: Digit Classification Execution (F_pool 11x11 -> Flatten 121 -> Dense & Softmax)
+  const classificationResult = useMemo(() => {
+    return classifyPipeline(
+      poolResult.poolMap,
+      binarizedImg,
+      convConfig,
+      poolConfig,
+      preprocessConfig.normalize
+    );
+  }, [poolResult.poolMap, binarizedImg, convConfig, poolConfig, preprocessConfig.normalize]);
 
   // Total steps for current animation stage
   const totalSteps =
@@ -271,6 +328,8 @@ export function App() {
             onOpenDrawModal={() => setIsDrawModalOpen(true)}
             onUploadImage={handleUploadImage}
             onRunAutoOtsu={handleRunAutoOtsu}
+            onAutoClean={handleAutoClean}
+            onOpenCompareModal={() => setIsCompareModalOpen(true)}
             activePreset={activePreset}
           />
 
@@ -313,6 +372,8 @@ export function App() {
               setStageMode(m);
               setCurrentStepIndex(0);
             }}
+            convStride={convConfig.stride}
+            poolStride={poolConfig.stride}
           />
 
           {/* Interactive Numerical Matrix Grids with Bidirectional Hover */}
@@ -326,8 +387,21 @@ export function App() {
             hoverState={hoverState}
             onHover={setHoverState}
             normalize={preprocessConfig.normalize}
+            onToggleNormalize={() =>
+              setPreprocessConfig((prev) => ({
+                ...prev,
+                normalize: !prev.normalize,
+              }))
+            }
             activeConvStep={activeConvStep}
             activePoolStep={activePoolStep}
+          />
+
+          {/* NEW: Stage 4 Digit Classification Live Prediction Drawer */}
+          <PredictionDashboard
+            classification={classificationResult}
+            poolMap={poolResult.poolMap}
+            normalize={preprocessConfig.normalize}
           />
 
           {/* Live Mathematical Equation & Calculation Drawer */}
@@ -348,6 +422,17 @@ export function App() {
         isOpen={isDrawModalOpen}
         onClose={() => setIsDrawModalOpen(false)}
         onApply={handleApplyDrawnCanvas}
+      />
+
+      {/* Preprocessing Clarifier: Blurry Input vs Cleaned Input Compare Modal */}
+      <CompareModal
+        isOpen={isCompareModalOpen}
+        onClose={() => setIsCompareModalOpen(false)}
+        rawImg={rawImgData}
+        convConfig={convConfig}
+        poolConfig={poolConfig}
+        normalize={preprocessConfig.normalize}
+        onApplyCleaned={handleApplyCleanedFromCompare}
       />
     </div>
   );

@@ -293,6 +293,129 @@ export function matrixToImageData(matrix: Matrix2D, normalize: boolean): ImageDa
 }
 
 /**
+ * Centers a digit in the canvas with margins and aspect ratio preservation
+ */
+export function centerDigitImage(src: ImageData): ImageData {
+  const { width, height, data } = src;
+  const out = new ImageData(width, height);
+  const outData = out.data;
+
+  // Fill black background
+  for (let i = 0; i < outData.length; i += 4) {
+    outData[i] = 5;
+    outData[i + 1] = 7;
+    outData[i + 2] = 14;
+    outData[i + 3] = 255;
+  }
+
+  // Find bounding box of foreground
+  let minX = width;
+  let maxX = -1;
+  let minY = height;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      const gray = Math.round(0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2]);
+      if (gray > 45) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+
+  if (maxX <= minX || maxY <= minY) {
+    outData.set(data);
+    return out;
+  }
+
+  const boxW = maxX - minX + 1;
+  const boxH = maxY - minY + 1;
+  const maxBoxDim = Math.max(boxW, boxH);
+  const targetContentSize = width * 0.74; // ~74% of canvas
+  const scale = targetContentSize / maxBoxDim;
+
+  const targetW = Math.round(boxW * scale);
+  const targetH = Math.round(boxH * scale);
+  const offsetX = Math.round((width - targetW) / 2);
+  const offsetY = Math.round((height - targetH) / 2);
+
+  for (let ty = 0; ty < targetH; ty++) {
+    const sy = Math.min(maxY, minY + Math.floor(ty / scale));
+    const dy = offsetY + ty;
+    if (dy < 0 || dy >= height) continue;
+
+    for (let tx = 0; tx < targetW; tx++) {
+      const sx = Math.min(maxX, minX + Math.floor(tx / scale));
+      const dx = offsetX + tx;
+      if (dx < 0 || dx >= width) continue;
+
+      const srcIdx = (sy * width + sx) * 4;
+      const dstIdx = (dy * width + dx) * 4;
+
+      outData[dstIdx] = data[srcIdx];
+      outData[dstIdx + 1] = data[srcIdx + 1];
+      outData[dstIdx + 2] = data[srcIdx + 2];
+      outData[dstIdx + 3] = 255;
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Auto-Clean: Applies Laplacian Sharpening (alpha = 1.8), Centers digit, and computes Otsu threshold
+ */
+export function runAutoClean(rawImg: ImageData): {
+  cleanedImg: ImageData;
+  optimalThreshold: number;
+} {
+  // 1. Center the digit
+  const centered = centerDigitImage(rawImg);
+
+  // 2. Unsharp Masking / Laplacian Sharpening with alpha = 1.8
+  const sharpened = applySharpen(centered, 1.8);
+
+  // 3. Grayscale
+  const gray = applyGrayscale(sharpened);
+
+  // 4. Otsu Thresholding to split into crisp binary 0s and 255s
+  const optimalThreshold = computeOtsuThreshold(gray);
+  const cleanedImg = applyBinarization(gray, 'binary', optimalThreshold);
+
+  return {
+    cleanedImg,
+    optimalThreshold,
+  };
+}
+
+/**
+ * Creates a blurry, noisy version of an image for side-by-side comparison
+ */
+export function simulateBlurryImage(rawImg: ImageData): ImageData {
+  const smoothed = applyNoiseReduction(rawImg, 'gaussian');
+  const copy = new ImageData(smoothed.width, smoothed.height);
+  const sData = smoothed.data;
+  const dData = copy.data;
+
+  for (let i = 0; i < sData.length; i += 4) {
+    const noise = (Math.random() - 0.5) * 20;
+    // Lower contrast, soften edges
+    const gray = (sData[i] + sData[i + 1] + sData[i + 2]) / 3;
+    const softened = Math.max(0, Math.min(255, Math.round(gray * 0.75 + 25 + noise)));
+    dData[i] = softened;
+    dData[i + 1] = softened;
+    dData[i + 2] = softened;
+    dData[i + 3] = 255;
+  }
+
+  return copy;
+}
+
+/**
  * Executes the complete visual pipeline returning intermediate previews
  */
 export function runPreprocessingPipeline(

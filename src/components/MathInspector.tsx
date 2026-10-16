@@ -103,6 +103,9 @@ export const MathInspector: React.FC<MathInspectorProps> = ({
           <div className="bg-slate-900/90 p-2.5 rounded-lg font-mono text-xs text-slate-300 overflow-x-auto">
             <p className="text-[11px] text-slate-400 mb-1">
               O_pool = ⌊ (O_conv - K_p) / S_p ⌋ + 1
+              <span className="text-emerald-400 font-sans ml-2 text-[10px]">
+                {Sp === Kp ? '• Non-Overlapping (50% reduction)' : '• Overlapping'}
+              </span>
             </p>
             <p className="text-emerald-200 font-semibold">
               = ⌊ ({convOutCalc} - {Kp}) / {Sp} ⌋ + 1

@@ -12,7 +12,7 @@ export interface PreprocessConfig {
   sharpenAlpha: number; // 0.0 to 3.0
   noiseReduction: NoiseReduction;
   normalize: boolean; // raw integers (0-255) vs normalized floats (0.00-1.00)
-  targetSize: number; // 12, 16, or 24
+  targetSize: number; // 12, 16, 24, or 28
 }
 
 export type Matrix2D = number[][];
@@ -77,4 +77,34 @@ export interface HoverState {
   type: 'conv' | 'pool' | 'input' | null;
   r?: number;
   c?: number;
+}
+
+export interface DigitPrediction {
+  digit: number;
+  probability: number; // 0.00 to 1.00
+  rawLogit: number;
+}
+
+export interface DigitBoundingBox {
+  id: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  digit: number;
+  confidence: number;
+}
+
+export interface MultiDigitResult {
+  isMultiDigit: boolean;
+  detectedDigits: number[];
+  boxes: DigitBoundingBox[];
+}
+
+export interface ClassificationResult {
+  flattenedVector: number[];
+  probabilities: DigitPrediction[]; // 10 classes (0-9)
+  topPrediction: DigitPrediction;
+  secondPrediction: DigitPrediction;
+  multiDigitResult?: MultiDigitResult;
 }

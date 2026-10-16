@@ -20,6 +20,8 @@ interface PlaybackBarProps {
   onChangeSpeed: (ms: number) => void;
   stageMode: 'conv' | 'pool';
   onChangeStageMode: (mode: 'conv' | 'pool') => void;
+  convStride?: number;
+  poolStride?: number;
 }
 
 export const PlaybackBar: React.FC<PlaybackBarProps> = ({
@@ -34,6 +36,8 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
   onChangeSpeed,
   stageMode,
   onChangeStageMode,
+  convStride = 1,
+  poolStride = 2,
 }) => {
   useEffect(() => {
     if (!isPlaying) return;
@@ -53,7 +57,7 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
   return (
     <div className="w-full bg-slate-900/90 rounded-2xl border border-slate-800 p-4 text-slate-200 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
       {/* Stage Selector & Step Status */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         {/* Stage Toggle */}
         <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
           <button
@@ -64,7 +68,7 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Step Convolution
+            Step Convolution (S={convStride})
           </button>
           <button
             onClick={() => onChangeStageMode('pool')}
@@ -74,7 +78,7 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            Step Pooling
+            Step Pooling (S_p={poolStride} Non-Overlapping)
           </button>
         </div>
 
@@ -87,6 +91,13 @@ export const PlaybackBar: React.FC<PlaybackBarProps> = ({
           <span className="text-slate-500">/</span>
           <span className="text-slate-400">{totalSteps}</span>
         </div>
+
+        {/* Striding Note */}
+        <span className="text-[10px] text-slate-400 font-mono hidden xl:inline">
+          {stageMode === 'conv'
+            ? `Advances by S=${convStride} cell(s)`
+            : `Advances by S_p=${poolStride} cells (Non-Overlapping)`}
+        </span>
       </div>
 
       {/* Playback Controls (Play, Prev, Next, Reset) */}

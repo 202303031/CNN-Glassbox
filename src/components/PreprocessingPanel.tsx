@@ -6,16 +6,30 @@ import {
   PenTool,
   RotateCcw,
   CheckCircle2,
+  Sparkles,
+  SplitSquareVertical,
 } from 'lucide-react';
 import type { PreprocessConfig, ColorMode, NoiseReduction } from '../types/cnn';
+
+export type PresetType =
+  | 'street'
+  | 'checkerboard'
+  | 'digit8'
+  | 'digit6'
+  | 'multi69'
+  | 'blurry8'
+  | 'custom_draw'
+  | 'uploaded';
 
 interface PreprocessingPanelProps {
   config: PreprocessConfig;
   onChangeConfig: (newConfig: PreprocessConfig) => void;
-  onSelectPreset: (presetId: 'street' | 'checkerboard' | 'digit8') => void;
+  onSelectPreset: (presetId: 'street' | 'checkerboard' | 'digit8' | 'digit6' | 'multi69' | 'blurry8') => void;
   onOpenDrawModal: () => void;
   onUploadImage: (file: File) => void;
   onRunAutoOtsu: () => void;
+  onAutoClean: () => void;
+  onOpenCompareModal: () => void;
   activePreset: string;
 }
 
@@ -26,6 +40,8 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
   onOpenDrawModal,
   onUploadImage,
   onRunAutoOtsu,
+  onAutoClean,
+  onOpenCompareModal,
   activePreset,
 }) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -56,12 +72,12 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
         <button
           onClick={() => {
             onChangeConfig({
-              colorMode: 'grayscale',
+              colorMode: 'binary',
               threshold: 128,
-              sharpenAlpha: 1.0,
+              sharpenAlpha: 1.8,
               noiseReduction: 'none',
               normalize: false,
-              targetSize: 16,
+              targetSize: 24,
             });
           }}
           title="Reset preprocessing filters to defaults"
@@ -72,10 +88,31 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
         </button>
       </div>
 
+      {/* SPECIAL FEATURE BUTTONS: Auto-Clean Preset & Compare View */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <button
+          onClick={onAutoClean}
+          className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold bg-gradient-to-r from-cyan-600 via-teal-600 to-emerald-600 hover:from-cyan-500 hover:to-emerald-500 text-white shadow-lg shadow-cyan-600/25 ring-1 ring-cyan-400/30 transition-all active:scale-95"
+          title="Instant Auto-Clean: Applies Laplacian alpha=1.8, Centers Digit, Runs Otsu Binarization"
+        >
+          <Sparkles className="w-4 h-4 fill-white" />
+          <span>Instant Auto-Clean (α=1.8)</span>
+        </button>
+
+        <button
+          onClick={onOpenCompareModal}
+          className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl text-xs font-bold bg-indigo-950/80 hover:bg-indigo-900/80 text-indigo-200 border border-indigo-500/40 shadow-md transition-all active:scale-95"
+          title="Side-by-side: Run on Blurry Input vs Run on Cleaned Input"
+        >
+          <SplitSquareVertical className="w-4 h-4 text-indigo-400" />
+          <span>Blurry vs Cleaned View</span>
+        </button>
+      </div>
+
       {/* SECTION 1: Image Source & Presets */}
       <div className="flex flex-col gap-3">
         <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-          Source Image
+          Source Image & Digit Presets
         </label>
 
         {/* Drag and drop upload zone */}
@@ -83,7 +120,7 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-slate-700 hover:border-indigo-500/80 bg-slate-950/60 hover:bg-slate-900/60 transition-all rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer group text-center"
+          className="border-2 border-dashed border-slate-700 hover:border-indigo-500/80 bg-slate-950/60 hover:bg-slate-900/60 transition-all rounded-xl p-3 flex flex-col items-center justify-center gap-1.5 cursor-pointer group text-center"
         >
           <input
             type="file"
@@ -96,24 +133,89 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
             accept="image/png, image/jpeg, image/jpg, image/webp"
             className="hidden"
           />
-          <div className="p-2.5 rounded-full bg-slate-800 group-hover:bg-indigo-600/20 text-slate-400 group-hover:text-indigo-400 transition-colors">
-            <Upload className="w-5 h-5" />
+          <div className="p-2 rounded-full bg-slate-800 group-hover:bg-indigo-600/20 text-slate-400 group-hover:text-indigo-400 transition-colors">
+            <Upload className="w-4 h-4" />
           </div>
           <div>
             <p className="text-xs font-medium text-slate-200">
               Drop image here or <span className="text-indigo-400 underline">browse</span>
             </p>
-            <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, or WebP</p>
+            <p className="text-[10px] text-slate-400">Custom PNG, JPG, or WebP</p>
           </div>
         </div>
 
-        {/* 4 Procedural Presets */}
-        <div className="grid grid-cols-2 gap-2 mt-1">
+        {/* Presets Grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-1">
+          {/* MNIST Digit 8 */}
+          <button
+            onClick={() => onSelectPreset('digit8')}
+            className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
+              activePreset === 'digit8'
+                ? 'bg-indigo-950/70 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
+                : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-100">MNIST Digit '8'</span>
+              {activePreset === 'digit8' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />}
+            </div>
+            <span className="text-[10px] text-slate-400">Two stacked loops</span>
+          </button>
+
+          {/* MNIST Digit 6 */}
+          <button
+            onClick={() => onSelectPreset('digit6')}
+            className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
+              activePreset === 'digit6'
+                ? 'bg-indigo-950/70 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
+                : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-100">MNIST Digit '6'</span>
+              {activePreset === 'digit6' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />}
+            </div>
+            <span className="text-[10px] text-slate-400">Bottom loop & stem</span>
+          </button>
+
+          {/* Multi-digit 69 */}
+          <button
+            onClick={() => onSelectPreset('multi69')}
+            className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
+              activePreset === 'multi69'
+                ? 'bg-purple-950/70 border-purple-500 text-purple-200 ring-1 ring-purple-500/50'
+                : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-purple-200">Multi-Digit '69'</span>
+              {activePreset === 'multi69' && <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />}
+            </div>
+            <span className="text-[10px] text-slate-400">Connected components</span>
+          </button>
+
+          {/* Blurry Digit 8 */}
+          <button
+            onClick={() => onSelectPreset('blurry8')}
+            className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
+              activePreset === 'blurry8'
+                ? 'bg-amber-950/70 border-amber-500 text-amber-200 ring-1 ring-amber-500/50'
+                : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-amber-200">Blurry Noisy '8'</span>
+              {activePreset === 'blurry8' && <CheckCircle2 className="w-3.5 h-3.5 text-amber-400" />}
+            </div>
+            <span className="text-[10px] text-slate-400">Test Clarifier</span>
+          </button>
+
+          {/* Urban Scene */}
           <button
             onClick={() => onSelectPreset('street')}
             className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
               activePreset === 'street'
-                ? 'bg-indigo-950/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
+                ? 'bg-indigo-950/70 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
                 : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
             }`}
           >
@@ -124,41 +226,12 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
             <span className="text-[10px] text-slate-400">Gradients & lighting</span>
           </button>
 
-          <button
-            onClick={() => onSelectPreset('checkerboard')}
-            className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
-              activePreset === 'checkerboard'
-                ? 'bg-indigo-950/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
-                : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-100">Checkerboard</span>
-              {activePreset === 'checkerboard' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />}
-            </div>
-            <span className="text-[10px] text-slate-400">Sharp geometric edges</span>
-          </button>
-
-          <button
-            onClick={() => onSelectPreset('digit8')}
-            className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
-              activePreset === 'digit8'
-                ? 'bg-indigo-950/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
-                : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span className="font-semibold text-slate-100">MNIST Digit '8'</span>
-              {activePreset === 'digit8' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />}
-            </div>
-            <span className="text-[10px] text-slate-400">Soft curved strokes</span>
-          </button>
-
+          {/* Custom Draw */}
           <button
             onClick={onOpenDrawModal}
             className={`p-2 rounded-xl text-left border text-xs transition-all flex flex-col gap-1 ${
               activePreset === 'custom_draw'
-                ? 'bg-indigo-950/50 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
+                ? 'bg-indigo-950/70 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50'
                 : 'bg-slate-950/50 border-slate-800 text-slate-300 hover:border-slate-700'
             }`}
           >
@@ -169,7 +242,7 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
               </div>
               {activePreset === 'custom_draw' && <CheckCircle2 className="w-3.5 h-3.5 text-indigo-400" />}
             </div>
-            <span className="text-[10px] text-slate-400">Draw custom patterns</span>
+            <span className="text-[10px] text-slate-400">Draw digits 0-9</span>
           </button>
         </div>
       </div>
@@ -191,8 +264,8 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
           <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
             {(
               [
+                { id: 'binary', label: 'B & W (Otsu)' },
                 { id: 'grayscale', label: 'Grayscale' },
-                { id: 'binary', label: 'B & W' },
                 { id: 'inverted_binary', label: 'Inv B&W' },
               ] as { id: ColorMode; label: string }[]
             ).map((m) => (
@@ -243,7 +316,7 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
             className="mt-1 flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition-all active:scale-95 shadow-sm"
           >
             <Wand2 className="w-3.5 h-3.5 text-amber-400" />
-            Auto Otsu Threshold
+            Recalculate Otsu Threshold
           </button>
         </div>
 
@@ -310,13 +383,13 @@ export const PreprocessingPanel: React.FC<PreprocessingPanelProps> = ({
             <span className="text-[10px] text-slate-400">Area Averaging</span>
           </div>
           <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-            {[12, 16, 24].map((size) => (
+            {[16, 24, 28].map((size) => (
               <button
                 key={size}
                 onClick={() => onChangeConfig({ ...config, targetSize: size })}
                 className={`py-1.5 text-xs font-mono font-semibold rounded-lg transition-all ${
                   config.targetSize === size
-                    ? 'bg-emerald-600 text-white shadow-sm'
+                    ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-400/50'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >

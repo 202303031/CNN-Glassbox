@@ -244,3 +244,156 @@ export function generateHandwrittenDigit8(ctx: CanvasRenderingContext2D, size = 
   ctx.lineTo(cx + rBot * 0.8, botY + rBot * 0.3);
   ctx.stroke();
 }
+
+export function generateHandwrittenDigit6(ctx: CanvasRenderingContext2D, size = 128) {
+  ctx.fillStyle = '#05070e';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = size * 0.14;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const cx = size * 0.52;
+  const cy = size * 0.64;
+  const r = size * 0.23;
+
+  // Bottom loop
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Stem curving up to top-right
+  ctx.beginPath();
+  ctx.moveTo(cx - r, cy);
+  ctx.bezierCurveTo(
+    cx - r * 0.9, size * 0.3,
+    cx - r * 0.2, size * 0.18,
+    cx + r * 0.6, size * 0.18
+  );
+  ctx.stroke();
+}
+
+export function generateHandwrittenDigit3(ctx: CanvasRenderingContext2D, size = 128) {
+  ctx.fillStyle = '#05070e';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = size * 0.14;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const cx = size * 0.48;
+  const rTop = size * 0.2;
+  const rBot = size * 0.23;
+
+  // Top curve
+  ctx.beginPath();
+  ctx.arc(cx, size * 0.35, rTop, -Math.PI * 0.8, Math.PI * 0.5);
+  ctx.stroke();
+
+  // Bottom curve
+  ctx.beginPath();
+  ctx.arc(cx, size * 0.65, rBot, -Math.PI * 0.5, Math.PI * 0.8);
+  ctx.stroke();
+}
+
+export function generateHandwrittenDigitMulti69(ctx: CanvasRenderingContext2D, size = 128) {
+  ctx.fillStyle = '#05070e';
+  ctx.fillRect(0, 0, size, size);
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = size * 0.11;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Left digit: '6'
+  const c6x = size * 0.28;
+  const c6y = size * 0.63;
+  const r6 = size * 0.17;
+
+  ctx.beginPath();
+  ctx.arc(c6x, c6y, r6, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(c6x - r6, c6y);
+  ctx.bezierCurveTo(
+    c6x - r6 * 0.8, size * 0.35,
+    c6x - r6 * 0.1, size * 0.22,
+    c6x + r6 * 0.6, size * 0.22
+  );
+  ctx.stroke();
+
+  // Right digit: '9'
+  const c9x = size * 0.72;
+  const c9y = size * 0.37;
+  const r9 = size * 0.17;
+
+  ctx.beginPath();
+  ctx.arc(c9x, c9y, r9, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(c9x + r9, c9y);
+  ctx.bezierCurveTo(
+    c9x + r9 * 0.8, size * 0.65,
+    c9x + r9 * 0.1, size * 0.78,
+    c9x - r9 * 0.6, size * 0.78
+  );
+  ctx.stroke();
+}
+
+export function generateBlurryDigit8(ctx: CanvasRenderingContext2D, size = 128) {
+  // Simulates a low-contrast, blurry noisy camera capture of '8'
+  ctx.fillStyle = '#161922';
+  ctx.fillRect(0, 0, size, size);
+
+  // Background noise gradient
+  const grad = ctx.createRadialGradient(size * 0.5, size * 0.5, 10, size * 0.5, size * 0.5, size * 0.8);
+  grad.addColorStop(0, '#2a3142');
+  grad.addColorStop(1, '#0e111a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Soft blurry stroke using shadow blur
+  ctx.save();
+  ctx.shadowColor = '#d1d5db';
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = '#9ca3af';
+  ctx.lineWidth = size * 0.18;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const cx = size / 2;
+  const topY = size * 0.36;
+  const botY = size * 0.64;
+  const rTop = size * 0.2;
+  const rBot = size * 0.24;
+
+  ctx.beginPath();
+  ctx.arc(cx, topY, rTop, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(cx, botY, rBot, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - rTop * 0.7, topY - rTop * 0.2);
+  ctx.lineTo(cx + rBot * 0.8, botY + rBot * 0.3);
+  ctx.stroke();
+
+  ctx.restore();
+
+  // Add random speckle noise
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const data = imgData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const noise = (Math.random() - 0.5) * 35;
+    data[i] = Math.max(0, Math.min(255, data[i] + noise));
+    data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise));
+    data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise));
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
